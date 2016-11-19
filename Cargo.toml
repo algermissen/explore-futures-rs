@@ -1,0 +1,8 @@
+[package]
+name = "explore-futures-rs"
+version = "0.1.0"
+authors = ["Jan Algermissen <algermissen@acm.org>"]
+
+[dependencies]
+futures = { git = "https://github.com/alexcrichton/futures-rs"}
+
