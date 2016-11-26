@@ -1,7 +1,11 @@
 extern crate futures;
+extern crate tokio_core;
 
 use futures::future::*;
 use std::time::Duration;
+use tokio_core::reactor::Interval;
+use tokio_core::reactor::Core;
+use futures::stream::{Stream};
 
 
 // A is an example for some 'component' that
@@ -16,7 +20,7 @@ impl A {
     // is to be done.
     pub fn new(interval: Duration) -> A {
         A { state: 0 }
-        // How to start periodic work here?
+        // How to start pe  riodic work here?
     }
     // To be called each 'interval' to update state
     fn update_state(&mut self) {
@@ -34,7 +38,29 @@ fn main() {
     let a2 = A::new(Duration::new(7, 0));
     let a3 = A::new(Duration::new(25, 0));
 
-    println!("State: a1:{} a2:{}, a3:{}", a1.get(), a2.get(), a3.get())
+    println!("State: a1:{} a2:{}, a3:{}", a1.get(), a2.get(), a3.get());
+
+
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
+
+    let s = Interval::new(Duration::new(5, 0), &handle).unwrap();
+
+    //    let x = s.and_then(|i| {
+    //        println!("Hallo");
+    //        Ok(())
+    //    });
+    //
+    //        let y = x.for_each(|r| {
+    //            r
+    //        });
+
+    let x = s.for_each(|r| {
+        println!("Hallo");
+        Ok(())
+    });
+
+    core.run(x); //.unwrap();
 
     //    let f1 = ok::<u32, u32>(1);
     //    let f2 = ok::<u32, u32>(2);

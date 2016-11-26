@@ -5,4 +5,5 @@ authors = ["Jan Algermissen <algermissen@acm.org>"]
 
 [dependencies]
 futures = { git = "https://github.com/alexcrichton/futures-rs"}
+tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
 
