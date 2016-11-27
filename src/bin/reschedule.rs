@@ -153,11 +153,11 @@ enum State {
 //    futu
 //}
 
-fn testSimulateRemoteGetValue<R, F>(handle: &Handle, d: Duration, v: R) -> Map<Timeout, F>
+fn testSimulateRemoteGetValue<R, F>(handle: &Handle, d: Duration, f: F) -> Map<Timeout, F>
     where R: Clone, F: FnOnce(()) -> R,
 {
     let timeout = Timeout::new(d, handle).unwrap();
-    let fut: Map<Timeout, F> = timeout.map(|r| -> R { v });
+    let fut: Map<Timeout, F> = timeout.map(f);
     fut
 }
 
