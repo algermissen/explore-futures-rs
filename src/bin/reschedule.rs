@@ -18,7 +18,6 @@ use futures::Poll;
 use std::thread;
 use std::cell::Cell;
 use std::boxed::Box;
-//use std::boxed::FnBox;
 
 use tokio_core::reactor::{Core, Timeout};
 
@@ -33,42 +32,15 @@ impl Error {
     }
 }
 
-
-//struct MyFuture<S: Clone> {
-//    v: S
-//}
-//
-//impl<S: Clone> Future for MyFuture<S>
-//{
-//    type Item = S;
-//    type Error = Error;
-//
-//    fn poll(&mut self) -> Poll<S, Error> {
-//        //self.get().poll()
-//        Ok(Async::Ready(self.v.clone()))
-//    }
-//}
-
-//impl<S: Clone> IntoFuture for MyFuture<S> {
-//    type Future = MyFuture<S>;
-//    type Item = S;
-//    type Error = Error;
-//
-//    fn into_future(self) -> MyFuture<S> {
-//        self
-//    }
-//}
-
-//impl<F, R> Future for Lazy<F, R>
-//where F: FnOnce() -> R,
-//R: IntoFuture,
-
-
+// The instructions that the 'Actor' understands
+// Commands return a new state to drive the next action
 enum Cmd<S: Clone> {
+    // Start with a certain state
     Start(S),
-    //    Run(Box<FnBox(Handle) -> MyFuture<S>>),
-    //Run(Box<FnOnce(Handle) -> MyFuture<S>>),
+    // Run a function that returns a future of the state to proceed with
     Run(fn(handle: Handle) -> Box<Future<Item = S, Error = ()>>),
+    Run2(S, fn(handle: Handle, S) -> Box<Future<Item = S, Error = ()>>),
+    // Switch to a new state after duration
     After(Duration, S)
 }
 
@@ -82,6 +54,8 @@ struct Actor<S: Clone> {
     //fu: fn(S) -> Cmd<S>,
 }
 
+// An actor takes an internal state machine (guts) which is a function
+// from state to command-resulting-in-state
 impl<S: 'static + Clone> Actor<S> {
     fn new(handle: Handle, start_state: S, guts: fn(S) -> Cmd<S>) -> Actor<S> {
         //        let d = Duration::from_millis(5000);
@@ -92,6 +66,7 @@ impl<S: 'static + Clone> Actor<S> {
         a
     }
 
+    // execute the provided internals (guts)
     fn run_guts(handle: Handle, cmd: Cmd<S>, guts: fn(S) -> Cmd<S>) {
         let futu = match cmd {
             Cmd::Start(state) => {
@@ -137,6 +112,22 @@ impl<S: 'static + Clone> Actor<S> {
                     futures::future::ok::<(), ()>(())
                 });
                 handle.spawn(fut);
+            },
+            Cmd::Run2(state, work_future) => {
+                let handle_copy = handle.clone();
+                let handle_copy2 = handle.clone();
+                let state_copy = state.clone();
+                let guts_copy = guts.clone();
+                let fut0: Box<Future<Item = S, Error = ()>> = work_future(handle_copy, state_copy);
+                let fut = fut0.then(move |x: Result<S, ()>| {
+                    let new_state = x.unwrap();
+                    println!("******************************** RUN **********");
+                    let next_cmd = guts_copy(new_state);
+                    Actor::run_guts(handle_copy2, next_cmd, guts_copy);
+                    // TODO match on r
+                    futures::future::ok::<(), ()>(())
+                });
+                handle.spawn(fut);
             }
         };
     }
@@ -147,10 +138,11 @@ impl<S: 'static + Clone> Actor<S> {
     //    }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum State {
     Start(i32),
     Foo(i32),
+    Foo2(i32),
     End
 }
 
@@ -160,19 +152,22 @@ fn main() {
     let worker_thread = thread::spawn(move || {
         let mut core = Core::new().unwrap();
 
-
-        //        let z = testSimulateRemoteGetValue(&(core.handle()), |()| { State::End }).then(|_| {
-        //            println!("XXXXXXXXXXXXX");
-        //            futures::future::ok::<(), ()>(())
-        //        });
-        //        core.handle().spawn(z);
-
         fn doFoo(handle: Handle) -> Box<Future<Item = State, Error = ()>> {
             println!("Starting dofoo >>>> =======================================");
             let f = testSimulateRemoteGetValue(&handle, |()| { State::End });
             //Box::new(f.map(|x| { State::End }).map_err(|e| { () }))
             Box::new(f.map(|x| {
                 println!("completed dofoo <<<< =======================================");
+                State::Foo2(22)
+            }).map_err(|e| { () }))
+        }
+
+        fn doFoo2(handle: Handle, state: State) -> Box<Future<Item = State, Error = ()>> {
+            println!("Starting dofoo >>>> =======================================");
+            let f = testSimulateRemoteGetValue(&handle, |()| { State::End });
+            //Box::new(f.map(|x| { State::End }).map_err(|e| { () }))
+            Box::new(f.map(move |x| {
+                println!("completed dofoo <<<< ======================================= {:?} ", state);
                 State::End
             }).map_err(|e| { () }))
         }
@@ -187,6 +182,10 @@ fn main() {
                     println!("foo - run doFoo now");
                     Cmd::Run(doFoo)
                 },
+                State::Foo2(s) => {
+                    println!("foo - run doFoo now");
+                    Cmd::Run2(State::Foo2(s.clone()), doFoo2)
+                },
                 State::End => {
                     println!("end - end, run end egain in 1 sec");
                     Cmd::After(Duration::new(1, 0), State::End)
@@ -198,7 +197,7 @@ fn main() {
         let a: Actor<State> = Actor::new(core.handle(), State::Start(10), update);
 
         // An interval stream to drive the background worker futures.
-        let interval_stream = Interval::new(Duration::new(1, 0), &(core.handle())).unwrap();
+        let interval_stream = Interval::new(Duration::new(60, 0), &(core.handle())).unwrap();
         let stream_future = interval_stream.for_each(|_| {
             println!("Worker driver says hello");
             Ok(())
