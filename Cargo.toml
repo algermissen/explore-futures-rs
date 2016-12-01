@@ -7,3 +7,11 @@ authors = ["Jan Algermissen <algermissen@acm.org>"]
 futures = { git = "https://github.com/alexcrichton/futures-rs"}
 tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
 
+[lib]
+name = "wrk"
+path = "src/wrk.rs"
+
+[[bin]]
+name = "wrktest"
+path = "src/bin/wrktest.rs"
+
