@@ -1,32 +1,24 @@
 extern crate futures;
 extern crate tokio_core;
-//
-use tokio_core::reactor::Interval;
-use tokio_core::reactor::Handle;
-use futures::stream::{Stream};
-//
+extern crate wrk;
+
 use std::time::Duration;
-use futures::Future;
-//use futures::IntoFuture;
-//use futures::Then;
-use futures::Map;
-//use std::result::Result;
-//use std::io;
-//use futures::Async;
-//use futures::future::Ok;
-//use futures::Poll;
 use std::thread;
-//use std::cell::Cell;
 use std::boxed::Box;
 
-use tokio_core::reactor::{Core, Timeout};
+use futures::Future;
+use futures::Map;
+use futures::stream::Stream;
 
-extern crate wrk;
+use tokio_core::reactor::Interval;
+use tokio_core::reactor::Handle;
+use tokio_core::reactor::Core;
+use tokio_core::reactor::Timeout;
 
 use wrk::Worker;
 use wrk::Cmd;
 
-
+// States of our worker's state machine
 #[derive(Copy, Clone, Debug)]
 enum State {
     Start(i32),
@@ -34,12 +26,13 @@ enum State {
     End
 }
 
-
 fn main() {
     // A thread on which background workers will be run.
     let worker_thread = thread::spawn(move || {
+        // Event loop for background work on this thread
         let mut core = Core::new().unwrap();
 
+        // Asynchronously obtains a value from somewhere and increments a counter
         fn do_count(handle: Handle, state: State) -> Box<Future<Item = State, Error = ()>> {
             match state {
                 State::Counting(c) => {
@@ -54,6 +47,7 @@ fn main() {
             }
         }
 
+        // The internal state machine of our worker instance
         fn counter_worker_func(state: State) -> Cmd<State> {
             match state {
                 State::Start(s) => {
@@ -61,7 +55,6 @@ fn main() {
                     Cmd::After(Duration::new(1, 0), State::Counting(s.clone()))
                 },
                 State::Counting(s) => {
-                    println!("Counting - now {:?}", s);
                     if s < 4 {
                         Cmd::Run(State::Counting(s.clone()), do_count)
                     } else {

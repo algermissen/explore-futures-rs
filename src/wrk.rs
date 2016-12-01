@@ -27,7 +27,6 @@ pub enum Cmd<S: Clone> {
     // Start with a certain state
     Start(S),
     // Run a function that returns a future of the state to proceed with
-    //    Run(fn(handle: Handle) -> Box<Future<Item = S, Error = ()>>),
     Run(S, fn(handle: Handle, S) -> Box<Future<Item = S, Error = ()>>),
     // Switch to a new state after duration
     After(Duration, S)
@@ -64,7 +63,6 @@ impl<S: 'static + Clone> Worker<S> {
                 let state_copy = state.clone();
                 let guts_copy = guts.clone();
                 let fut = timeout.then(move |_| {
-                    //                    println!("******************************** START **********");
                     let next_cmd = guts_copy(state_copy);
                     Worker::run_guts(handle_copy, next_cmd, guts_copy);
                     // TODO match on r
@@ -78,7 +76,6 @@ impl<S: 'static + Clone> Worker<S> {
                 let state_copy = state.clone();
                 let guts_copy = guts.clone();
                 let fut = timeout.then(move |_| {
-                    //                    println!("******************************** AFTER **********");
                     let next_cmd = guts_copy(state_copy);
                     Worker::run_guts(handle_copy, next_cmd, guts_copy);
                     // TODO match on r
@@ -86,22 +83,6 @@ impl<S: 'static + Clone> Worker<S> {
                 });
                 handle.spawn(fut);
             },
-            //            Cmd::Run(work_future) => {
-            //                let handle_copy = handle.clone();
-            //                let handle_copy2 = handle.clone();
-            //                //                let state_copy = state.clone();
-            //                let guts_copy = guts.clone();
-            //                let fut0: Box<Future<Item = S, Error = ()>> = work_future(handle_copy);
-            //                let fut = fut0.then(move |x: Result<S, ()>| {
-            //                    let new_state = x.unwrap();
-            //                    //                    println!("******************************** RUN **********");
-            //                    let next_cmd = guts_copy(new_state);
-            //                    Worker::run_guts(handle_copy2, next_cmd, guts_copy);
-            //                    // TODO match on r
-            //                    futures::future::ok::<(), ()>(())
-            //                });
-            //                handle.spawn(fut);
-            //            },
             Cmd::Run(state, work_future) => {
                 let handle_copy = handle.clone();
                 let handle_copy2 = handle.clone();
@@ -110,7 +91,6 @@ impl<S: 'static + Clone> Worker<S> {
                 let fut0: Box<Future<Item = S, Error = ()>> = work_future(handle_copy, state_copy);
                 let fut = fut0.then(move |x: Result<S, ()>| {
                     let new_state = x.unwrap();
-                    //                    println!("******************************** RUN **********");
                     let next_cmd = guts_copy(new_state);
                     Worker::run_guts(handle_copy2, next_cmd, guts_copy);
                     // TODO match on r
